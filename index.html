@@ -3,22 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GDM Insulin Calculator</title>
+    <title>GDM Insulin Calculator & Logbook</title>
     
     <!-- 1. Import React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     
-    <!-- 2. Import Babel (เพื่อแปลง JSX ใน Browser) -->
+    <!-- 2. Import Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <!-- 3. Import Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- ปรับแต่ง Tailwind Font -->
+    <!-- Custom Styles & Print Styles -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700&display=swap');
         body { font-family: 'Sarabun', sans-serif; }
+        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Print Specific Styles */
+        @media print {
+            @page { margin: 0.5cm; size: A4; }
+            body { background: white; -webkit-print-color-adjust: exact; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            .print-container { 
+                width: 100% !important; 
+                max-width: none !important; 
+                margin: 0 !important; 
+                padding: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+            }
+            .page-break { page-break-after: always; }
+        }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-900">
@@ -28,7 +47,7 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // --- Icon Components (สร้าง SVG เองเพื่อไม่ต้องลง Library) ---
+        // --- Icon Components ---
         const IconCalculator = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>;
         const IconSyringe = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 2 4 4"/><path d="m17 7 3-3"/><path d="M19 9 8.7 19.3c-1 1-2.5 1-3.4 0l-.6-.6c-1-1-1-2.5 0-3.4L15 5"/><path d="m9 11 4 4"/><path d="m5 19-3 3"/><path d="m14 4 6 6"/></svg>;
         const IconCalendar = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>;
@@ -38,20 +57,347 @@
         const IconCheck = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>;
         const IconClock = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
         const IconBookOpen = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>;
+        const IconArrowLeft = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>;
+        const IconTarget = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>;
+        const IconTable = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="3" x2="21" y1="9" y2="9"/><line x1="3" x2="21" y1="15" y2="15"/><line x1="12" x2="12" y1="3" y2="21"/></svg>;
+        const IconPrinter = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>;
+        const IconFood = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20.94c1.61 0 3.11-.29 4.47-.8 2.06-.77 3.53-2.61 3.53-4.8 0-4.04-3.58-6.17-8-6.17s-8 2.13-8 6.17c0 2.19 1.47 4.03 3.53 4.8 1.36.51 2.86.8 4.47.8Z"/><path d="M10 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2Z"/><path d="M12 9.17V6"/></svg>;
+        const IconVideo = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="8" x2="8" y1="21" y2="21"/><line x1="16" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="15" y2="21"/><path d="m10 9 5 3-5 3z"/></svg>;
+
+        // --- Logbook View Component ---
+        const LogbookView = ({ onBack }) => {
+            const rows = Array.from({ length: 30 }, (_, i) => i + 1);
+
+            return (
+                <div className="bg-white min-h-screen">
+                    {/* Toolbar (Hidden when printing) */}
+                    <div className="no-print p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 sticky top-0 z-20">
+                        <button onClick={onBack} className="flex items-center gap-2 text-slate-600 hover:text-blue-600 transition-colors">
+                            <IconArrowLeft /> กลับหน้าหลัก
+                        </button>
+                        <button 
+                            onClick={() => window.print()} 
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-all"
+                        >
+                            <IconPrinter /> สั่งพิมพ์ตาราง (Print)
+                        </button>
+                    </div>
+
+                    {/* Printable Area */}
+                    <div className="p-8 print-container max-w-5xl mx-auto">
+                        <div className="flex justify-between items-end mb-6 border-b-2 border-slate-800 pb-4">
+                            <div>
+                                <h1 className="text-2xl font-bold text-slate-900">ตารางบันทึกระดับน้ำตาล (SMBG Logbook)</h1>
+                                <p className="text-slate-500 text-sm">สำหรับผู้ป่วยเบาหวานขณะตั้งครรภ์ (Gestational Diabetes Mellitus)</p>
+                            </div>
+                            <div className="text-right text-xs text-slate-400">
+                                <p>บันทึก 30 วัน</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-8 mb-6 text-sm">
+                            <div className="space-y-4">
+                                <div className="border-b border-dotted border-slate-400 pb-1">ชื่อ-นามสกุล: </div>
+                                <div className="border-b border-dotted border-slate-400 pb-1">HN: </div>
+                            </div>
+                            <div className="space-y-4">
+                                <div className="border-b border-dotted border-slate-400 pb-1">วันที่เริ่มบันทึก: </div>
+                                <div className="border-b border-dotted border-slate-400 pb-1">แพทย์ผู้ดูแล: </div>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4 mb-4 text-xs">
+                            <div className="flex-1 bg-slate-50 border border-slate-200 rounded p-2 flex items-center justify-between print:border-slate-300">
+                                <strong className="text-slate-700">TARGETS:</strong>
+                                <div className="flex gap-6">
+                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 print:bg-slate-400"></span> Fasting &lt; 95</span>
+                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 print:bg-slate-400"></span> 2hr Post-Meal &lt; 120</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <table className="w-full border-collapse border border-slate-300 text-sm mb-4">
+                            <thead>
+                                <tr className="bg-slate-100 print:bg-slate-50 text-slate-700">
+                                    <th className="border border-slate-400 p-2 w-12 text-center">วันที่</th>
+                                    <th className="border border-slate-400 p-2 w-24 text-center">ว/ด/ป</th>
+                                    <th className="border border-slate-400 p-2 text-center bg-green-50 print:bg-white">
+                                        <div className="font-bold">Fasting</div>
+                                        <div className="text-[10px] font-normal text-slate-500">&lt; 95 mg/dL</div>
+                                    </th>
+                                    <th className="border border-slate-400 p-2 text-center">
+                                        <div className="font-bold">2hr หลังเช้า</div>
+                                        <div className="text-[10px] font-normal text-slate-500">&lt; 120 mg/dL</div>
+                                    </th>
+                                    <th className="border border-slate-400 p-2 text-center">
+                                        <div className="font-bold">2hr หลังเที่ยง</div>
+                                        <div className="text-[10px] font-normal text-slate-500">&lt; 120 mg/dL</div>
+                                    </th>
+                                    <th className="border border-slate-400 p-2 text-center">
+                                        <div className="font-bold">2hr หลังเย็น</div>
+                                        <div className="text-[10px] font-normal text-slate-500">&lt; 120 mg/dL</div>
+                                    </th>
+                                    <th className="border border-slate-400 p-2 text-center w-40">หมายเหตุ / ยาที่ฉีด</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rows.map(day => (
+                                    <tr key={day} className="h-9">
+                                        <td className="border border-slate-300 text-center text-xs text-slate-400 bg-slate-50 print:bg-white">{day}</td>
+                                        <td className="border border-slate-300"></td>
+                                        <td className="border border-slate-300 bg-green-50/30 print:bg-white"></td>
+                                        <td className="border border-slate-300"></td>
+                                        <td className="border border-slate-300"></td>
+                                        <td className="border border-slate-300"></td>
+                                        <td className="border border-slate-300"></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+
+                        <div className="text-xs text-slate-500 mt-4 border-t border-slate-200 pt-2">
+                            <p className="mb-1"><strong>คำแนะนำการปฏิบัติตัวเมื่อน้ำตาลผิดปกติ:</strong></p>
+                            <ul className="list-disc list-inside space-y-0.5 ml-2">
+                                <li>หาก <strong>Hypoglycemia (&lt; 60-70 mg/dL)</strong> หรือมีอาการใจสั่น เหงื่อออก: ให้ดื่มน้ำหวาน 1 แก้ว หรือลูกอม 2-3 เม็ด แล้วเจาะซ้ำใน 15 นาที</li>
+                                <li>หาก <strong>Hyperglycemia (สูงเกินเป้าหมาย)</strong> ติดต่อกันเกิน 3 วัน: โปรดนำสมุดนี้มาปรึกษาแพทย์ก่อนนัด</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Diet Advice View Component ---
+        const DietView = ({ onBack }) => {
+            return (
+                <div className="animate-fade-in pb-10">
+                    <div className="p-6 space-y-6">
+                        <button 
+                            onClick={onBack}
+                            className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 mb-2 transition-colors"
+                        >
+                            <div className="w-4 h-4"><IconArrowLeft /></div>
+                            กลับไปหน้าคำนวณ
+                        </button>
+
+                        <div className="border-b border-slate-200 pb-4">
+                            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                <div className="w-6 h-6 text-orange-500"><IconFood /></div>
+                                โภชนาการในสตรีตั้งครรภ์ (GDM Diet)
+                            </h2>
+                            <p className="text-sm text-slate-500 flex items-center gap-1">
+                                อ้างอิง: Chulabhorn Channel (CRA) & Medical Guidelines
+                            </p>
+                        </div>
+
+                         {/* Video Section */}
+                        <div className="bg-slate-900 rounded-xl overflow-hidden shadow-lg mb-6">
+                            <div className="aspect-video w-full">
+                                <iframe 
+                                    className="w-full h-full"
+                                    src="https://www.youtube.com/embed/Ei-Bm7Wd57o" 
+                                    title="โภชนาการหญิงตั้งครรภ์"
+                                    frameBorder="0"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                    allowFullScreen
+                                ></iframe>
+                            </div>
+                            <div className="p-3 bg-slate-800 text-white text-xs flex justify-between items-center">
+                                <span className="flex items-center gap-2"><IconVideo /> วิดีโอแนะนำ: โภชนาการสำหรับหญิงตั้งครรภ์</span>
+                                <span className="text-slate-400">by Chulabhorn Channel</span>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            
+                            {/* 1. Rice & Flour */}
+                            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                <div className="bg-orange-50 p-3 border-b border-orange-100 flex items-center gap-2">
+                                    <span className="bg-orange-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                                    <h3 className="font-bold text-slate-800 text-sm">หมวดข้าว-แป้ง (Carbohydrates)</h3>
+                                </div>
+                                <div className="p-4 space-y-3">
+                                    <p className="text-xs text-slate-600">ควรเลือกคาร์โบไฮเดรตเชิงซ้อน เพื่อให้น้ำตาลเข้าสู่กระแสเลือดช้าๆ</p>
+                                    <div className="grid grid-cols-2 gap-3 text-xs">
+                                        <div className="space-y-1">
+                                            <strong className="text-green-700">✅ ควรทาน:</strong>
+                                            <ul className="list-disc list-inside text-slate-600 pl-1">
+                                                <li>ข้าวกล้อง / ข้าวไรซ์เบอร์รี่</li>
+                                                <li>ขนมปังโฮลวีต</li>
+                                                <li>ธัญพืช, ลูกเดือย, ข้าวโพด</li>
+                                            </ul>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <strong className="text-red-700">❌ เลี่ยง/ลด:</strong>
+                                            <ul className="list-disc list-inside text-slate-600 pl-1">
+                                                <li>ข้าวขาว (ขัดสี)</li>
+                                                <li>ข้าวเหนียว (GI สูงมาก)</li>
+                                                <li>เส้นก๋วยเตี๋ยว, บะหมี่</li>
+                                                <li>โจ๊ก/ข้าวต้ม (ดูดซึมเร็ว)</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 2. Fruits */}
+                            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                <div className="bg-green-50 p-3 border-b border-green-100 flex items-center gap-2">
+                                    <span className="bg-green-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                                    <h3 className="font-bold text-slate-800 text-sm">หมวดผลไม้ (Fruits)</h3>
+                                </div>
+                                <div className="p-4 space-y-3">
+                                    <p className="text-xs text-slate-600">ทานวันละ 2-3 ส่วน (1 ส่วน = 1 จานรองแก้วกาแฟ หรือขนาดเท่ากำปั้น)</p>
+                                    <div className="grid grid-cols-1 gap-3 text-xs">
+                                        <div className="bg-green-50 p-2 rounded-lg border border-green-100">
+                                            <strong className="text-green-800">✅ ผลไม้หวานน้อย (แนะนำ):</strong>
+                                            <p className="text-slate-600 mt-1">ฝรั่ง (1ผล), แอปเปิ้ลเขียว (1ผล), แก้วมังกร (1/2ผล), ชมพู่ (2-3ผล), สาลี่ (1/2ผล)</p>
+                                        </div>
+                                        <div className="bg-red-50 p-2 rounded-lg border border-red-100">
+                                            <strong className="text-red-800">❌ ผลไม้หวานจัด (งด/จำกัด):</strong>
+                                            <p className="text-slate-600 mt-1">ทุเรียน, ลำไย, ขนุน, องุ่น, มะม่วงสุก, น้อยหน่า, ผลไม้กระป๋อง, ผลไม้แห้ง</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                             {/* 3. Vegetables */}
+                             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                <div className="bg-emerald-50 p-3 border-b border-emerald-100 flex items-center gap-2">
+                                    <span className="bg-emerald-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                                    <h3 className="font-bold text-slate-800 text-sm">หมวดผัก (Vegetables)</h3>
+                                </div>
+                                <div className="p-4">
+                                    <p className="text-xs text-slate-600 mb-2">ทานได้ไม่จำกัดปริมาณ เน้นผักใบเขียว กากใยช่วยชะลอการดูดซึมน้ำตาล</p>
+                                    <ul className="list-disc list-inside text-xs text-slate-600">
+                                        <li>ผักคะน้า, ผักกาดขาว, ผักบุ้ง</li>
+                                        <li>แตงกวา, มะเขือเทศ</li>
+                                        <li>แกงจืด, แกงเลียง, แกงส้ม (ระวังน้ำตาลในน้ำแกง)</li>
+                                    </ul>
+                                    <p className="text-[10px] text-red-500 mt-2">*ระวังผักหัวที่มีแป้งสูง เช่น มันฝรั่ง, เผือก, ฟักทอง (ต้องลดข้าวลงหากทานเยอะ)</p>
+                                </div>
+                            </div>
+
+                            {/* 4. Meat & Milk */}
+                            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                <div className="bg-blue-50 p-3 border-b border-blue-100 flex items-center gap-2">
+                                    <span className="bg-blue-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold">4</span>
+                                    <h3 className="font-bold text-slate-800 text-sm">หมวดเนื้อสัตว์ & นม (Protein & Dairy)</h3>
+                                </div>
+                                <div className="p-4 space-y-3 text-xs">
+                                    <div>
+                                        <strong className="text-blue-800">🐟 เนื้อสัตว์:</strong> เลือกไม่ติดมัน ไม่ติดหนัง
+                                        <p className="text-slate-600">ปลา, ไก่ลอกหนัง, ไข่ต้ม (ไข่แดงวันละ 1 ฟอง), เต้าหู้</p>
+                                    </div>
+                                    <div className="border-t border-slate-100 pt-2">
+                                        <strong className="text-blue-800">🥛 นม:</strong> ควรดื่มวันละ 1-2 แก้ว
+                                        <p className="text-slate-600">เลือก <strong>นมจืดพร่องมันเนย</strong> หรือ <strong>นมถั่วเหลืองสูตรหวานน้อย/ไม่ใส่น้ำตาล</strong></p>
+                                        <p className="text-red-500 mt-1">*งด นมเปรี้ยว, นมรสหวาน, นมข้นหวาน</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 5. Avoid List */}
+                            <div className="bg-red-50 border border-red-100 rounded-xl p-4 shadow-sm">
+                                <h3 className="font-bold text-red-800 text-sm mb-2 flex items-center gap-2">
+                                    <IconAlertCircle /> สิ่งที่ต้องงดเว้นเด็ดขาด
+                                </h3>
+                                <ul className="list-disc list-inside text-xs text-red-700 space-y-1">
+                                    <li>น้ำหวานทุกชนิด: ชาเย็น, กาแฟเย็น, นมเย็น, น้ำอัดลม</li>
+                                    <li>ขนมหวาน: ทองหยิบ, ทองหยอด, เค้ก, คุกกี้, ไอศกรีม</li>
+                                    <li>เครื่องปรุงรส: น้ำตาลทราย (ปรุงอาหารให้น้อยที่สุด)</li>
+                                    <li>ผลไม้แปรรูป: ผลไม้ดอง, ผลไม้แช่อิ่ม</li>
+                                </ul>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Education Component ---
+        const EducationView = ({ onBack }) => {
+            return (
+                <div className="animate-fade-in pb-10">
+                    <div className="p-6 space-y-6">
+                        <button 
+                            onClick={onBack}
+                            className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 mb-2 transition-colors"
+                        >
+                            <div className="w-4 h-4"><IconArrowLeft /></div>
+                            กลับไปหน้าคำนวณ
+                        </button>
+
+                        <div className="border-b border-slate-200 pb-4">
+                            <h2 className="text-xl font-bold text-slate-800">Diabetes and Pregnancy</h2>
+                            <p className="text-sm text-slate-500">สรุปเนื้อหาจาก: นพ.ณัฐพล สถาวรดม</p>
+                        </div>
+                        
+                        <div className="space-y-3">
+                            <h3 className="text-sm font-bold text-green-700 uppercase tracking-wider flex items-center gap-2">
+                                <div className="w-4 h-4"><IconTarget /></div>
+                                เป้าหมายระดับน้ำตาล (Targets)
+                            </h3>
+                            <div className="bg-green-50 p-4 rounded-xl border border-green-100 space-y-2">
+                                <div className="flex justify-between items-center border-b border-green-200 pb-2">
+                                    <span className="text-sm text-green-800">Fasting</span>
+                                    <span className="font-bold text-green-700">&lt; 95 mg/dL</span>
+                                </div>
+                                <div className="flex justify-between items-center border-b border-green-200 pb-2">
+                                    <span className="text-sm text-green-800">1-hr Postprandial</span>
+                                    <span className="font-bold text-green-700">&lt; 140 mg/dL</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-green-800">2-hr Postprandial</span>
+                                    <span className="font-bold text-green-700">&lt; 120 mg/dL</span>
+                                </div>
+                            </div>
+                        </div>
+
+                         {/* Classification */}
+                         <div className="space-y-3">
+                            <h3 className="text-sm font-bold text-blue-700 uppercase tracking-wider flex items-center gap-2">
+                                การจำแนกประเภท (Classification)
+                            </h3>
+                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                                <div>
+                                    <p className="font-semibold text-slate-800 text-sm">Pregestational Diabetes</p>
+                                    <p className="text-xs text-slate-500">เป็นเบาหวานมาก่อนตั้งครรภ์ (Type 1 หรือ Type 2)</p>
+                                </div>
+                                <div className="border-t border-slate-100 pt-2">
+                                    <p className="font-semibold text-slate-800 text-sm">Gestational Diabetes (GDM)</p>
+                                    <p className="text-xs text-slate-500 mb-2">เป็นเบาหวานครั้งแรกขณะตั้งครรภ์</p>
+                                    <ul className="list-disc list-inside text-xs text-slate-600 space-y-1 ml-1">
+                                        <li><strong>GDM A1:</strong> คุมอาหาร (Diet controlled)</li>
+                                        <li><strong>GDM A2:</strong> ใช้ยา (Medication required)</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
 
         // --- Main Component ---
         const InsulinCalculator = () => {
+            const [view, setView] = useState('calculator'); // 'calculator', 'education', 'logbook', 'diet'
+            
+            // Calculator States
             const [calcMode, setCalcMode] = useState('edd');
             const [weight, setWeight] = useState('');
             const [manualGa, setManualGa] = useState('');
             const [edd, setEdd] = useState('');
             const [visitDate, setVisitDate] = useState(new Date().toISOString().split('T')[0]);
             const [regimen, setRegimen] = useState('basal-bolus');
+            const [showSmbg, setShowSmbg] = useState(false);
             
             const [tdd, setTdd] = useState(0);
             const [factor, setFactor] = useState(0.7);
             const [calculationResult, setCalculationResult] = useState(null);
             const [showCopyFeedback, setShowCopyFeedback] = useState(false);
+            const [showSmbgCopyFeedback, setShowSmbgCopyFeedback] = useState(false);
             const [gaDisplay, setGaDisplay] = useState('');
 
             const REGIMEN_BASAL_BOLUS = 'basal-bolus';
@@ -167,280 +513,159 @@
 
             const copyToClipboard = () => {
                 if (!calculationResult) return;
-                
-                let text = `Insulin Calculation for GDM\n`;
-                text += `GA: ${gaDisplay} | Wt: ${weight} kg | TDD: ${tdd} units (Factor ${factor})\n`;
-                text += `Regimen: ${calculationResult.distribution.type}\n`;
-                
-                if (regimen === REGIMEN_BASAL_BOLUS) {
-                    text += `Formula: TDD x 0.5 Basal, TDD x 0.5 Bolus (/3 meals)\n`;
-                } else {
-                    text += `Formula: Morning (2/3 TDD, NPH:Reg 2:1), Evening (1/3 TDD, NPH:Reg 1:1)\n`;
-                }
-
+                let text = `Insulin Calculation for GDM\nGA: ${gaDisplay} | Wt: ${weight} kg | TDD: ${tdd} units\n`;
                 calculationResult.distribution.details.forEach(item => {
-                    text += `- ${item.time}: ${item.drug} ${item.dose} units`;
-                    if (item.secondaryDrug) {
-                        text += ` + ${item.secondaryDrug} ${item.secondaryDose} units`;
-                    }
-                    text += `\n`;
+                    text += `- ${item.time}: ${item.drug} ${item.dose} units\n`;
                 });
+                copyTextToClipboard(text, setShowCopyFeedback);
+            };
 
-                // Hack for copy in some browsers without HTTPS
+            const copySmbgToClipboard = () => {
+                let text = `SMBG Log Targets\nFasting < 95\nPost-Meal 2hr < 120`;
+                copyTextToClipboard(text, setShowSmbgCopyFeedback);
+            };
+
+            const copyTextToClipboard = (text, setFeedback) => {
                 const textArea = document.createElement("textarea");
                 textArea.value = text;
                 document.body.appendChild(textArea);
                 textArea.select();
                 try {
                     document.execCommand('copy');
-                    setShowCopyFeedback(true);
-                    setTimeout(() => setShowCopyFeedback(false), 2000);
-                } catch (err) {
-                    console.error('Fallback copy failed', err);
-                }
+                    setFeedback(true);
+                    setTimeout(() => setFeedback(false), 2000);
+                } catch (err) { console.error(err); }
                 document.body.removeChild(textArea);
-            };
+            }
+
+            // --- View Rendering ---
+            if (view === 'logbook') {
+                return <LogbookView onBack={() => setView('calculator')} />;
+            }
+            if (view === 'education') {
+                return <EducationView onBack={() => setView('calculator')} />;
+            }
+            if (view === 'diet') {
+                return <DietView onBack={() => setView('calculator')} />;
+            }
 
             return (
-                <div className="max-w-md mx-auto my-8 bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
+                <div className="max-w-md mx-auto my-8 bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100 min-h-[600px] print:hidden">
                     {/* Header */}
-                    <div className="bg-blue-600 p-6 text-white">
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="w-8 h-8"><IconCalculator /></div>
-                            <h1 className="text-2xl font-bold">GDM Insulin Calc</h1>
+                    <div className="bg-blue-600 p-6 text-white flex justify-between items-start sticky top-0 z-10">
+                        <div>
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-8 h-8"><IconCalculator /></div>
+                                <h1 className="text-2xl font-bold">GDM Insulin Calc</h1>
+                            </div>
+                            <p className="text-blue-100 text-sm">เครื่องมือคำนวณขนาดยาอินซูลินในหญิงตั้งครรภ์</p>
                         </div>
-                        <p className="text-blue-100 text-sm">เครื่องมือคำนวณขนาดยาอินซูลินในหญิงตั้งครรภ์</p>
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => setView('diet')}
+                                className="text-white/80 hover:text-white hover:bg-white/10 p-2 rounded-lg transition-all flex flex-col items-center gap-1 text-[10px]"
+                            >
+                                <div className="w-6 h-6"><IconFood /></div>
+                                <span>อาหาร</span>
+                            </button>
+                            <button 
+                                onClick={() => setView('education')}
+                                className="text-white/80 hover:text-white hover:bg-white/10 p-2 rounded-lg transition-all flex flex-col items-center gap-1 text-[10px]"
+                            >
+                                <div className="w-6 h-6"><IconBookOpen /></div>
+                                <span>ความรู้</span>
+                            </button>
+                        </div>
                     </div>
 
-                    {/* Input Section */}
-                    <div className="p-6 space-y-6">
+                    {/* Content Switcher */}
+                    <div className="p-6 space-y-6 animate-fade-in">
+                        {/* Input Form Section */}
                         <div className="space-y-4">
-                            
-                            {/* GA Selection Mode */}
+                            {/* GA Mode */}
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">
-                                    วิธีระบุอายุครรภ์ (Gestational Age Input)
-                                </label>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">วิธีระบุอายุครรภ์</label>
                                 <div className="flex bg-slate-100 p-1 rounded-xl mb-4">
-                                    <button
-                                        onClick={() => setCalcMode('edd')}
-                                        className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
-                                            calcMode === 'edd' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'
-                                        }`}
-                                    >
-                                        คำนวณจาก EDD
-                                    </button>
-                                    <button
-                                        onClick={() => setCalcMode('manual')}
-                                        className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
-                                            calcMode === 'manual' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'
-                                        }`}
-                                    >
-                                        ระบุเอง (Manual)
-                                    </button>
+                                    <button onClick={() => setCalcMode('edd')} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${calcMode === 'edd' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>คำนวณจาก EDD</button>
+                                    <button onClick={() => setCalcMode('manual')} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${calcMode === 'manual' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>ระบุเอง (Manual)</button>
                                 </div>
-
                                 {calcMode === 'manual' ? (
-                                    <div className="relative">
-                                        <label className="block text-xs text-slate-500 mb-1">อายุครรภ์ (สัปดาห์)</label>
-                                        <input
-                                            type="number"
-                                            value={manualGa}
-                                            onChange={(e) => setManualGa(e.target.value)}
-                                            placeholder="เช่น 28"
-                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                                        />
-                                        <div className="absolute left-3 top-8 text-slate-400 w-5 h-5"><IconClock /></div>
-                                    </div>
+                                    <div className="relative"><input type="number" value={manualGa} onChange={(e) => setManualGa(e.target.value)} placeholder="เช่น 28" className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none" /><div className="absolute left-3 top-3.5 text-slate-400 w-5 h-5"><IconClock /></div></div>
                                 ) : (
                                     <div className="space-y-3">
-                                        <div>
-                                            <label className="block text-xs text-slate-500 mb-1">วันกำหนดคลอด (EDD)</label>
-                                            <div className="relative">
-                                                <input
-                                                    type="date"
-                                                    value={edd}
-                                                    onChange={(e) => setEdd(e.target.value)}
-                                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                                                />
-                                                <div className="absolute left-3 top-3 text-slate-400 w-5 h-5"><IconCalendar /></div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs text-slate-500 mb-1">วันที่ตรวจ (Visit Date)</label>
-                                            <div className="relative">
-                                                <input
-                                                    type="date"
-                                                    value={visitDate}
-                                                    onChange={(e) => setVisitDate(e.target.value)}
-                                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                                                />
-                                                <div className="absolute left-3 top-3 text-slate-400 w-5 h-5"><IconCalendar /></div>
-                                            </div>
-                                        </div>
-                                        {gaDisplay && !calculationResult && (
-                                            <p className="text-sm text-green-600 font-medium bg-green-50 p-2 rounded-lg border border-green-100 text-center">
-                                                อายุครรภ์ที่คำนวณได้: {gaDisplay}
-                                            </p>
-                                        )}
+                                        <div className="relative"><input type="date" value={edd} onChange={(e) => setEdd(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none" /><div className="absolute left-3 top-3 text-slate-400 w-5 h-5"><IconCalendar /></div></div>
+                                        <div className="relative"><input type="date" value={visitDate} onChange={(e) => setVisitDate(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none" /><div className="absolute left-3 top-3 text-slate-400 w-5 h-5"><IconCalendar /></div></div>
+                                        {gaDisplay && !calculationResult && <p className="text-sm text-green-600 font-medium bg-green-50 p-2 rounded-lg border border-green-100 text-center">อายุครรภ์: {gaDisplay}</p>}
                                     </div>
                                 )}
                             </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    น้ำหนักมารดาปัจจุบัน (Current Weight - kg)
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        type="number"
-                                        value={weight}
-                                        onChange={(e) => setWeight(e.target.value)}
-                                        placeholder="เช่น 70"
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                                    />
-                                    <div className="absolute left-3 top-3.5 w-5 h-5 flex items-center justify-center text-slate-400 font-bold text-xs">kg</div>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">
-                                    รูปแบบการรักษา (Regimen Protocol)
-                                </label>
-                                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
-                                    <button
-                                        onClick={() => setRegimen(REGIMEN_BASAL_BOLUS)}
-                                        className={`py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-                                            regimen === REGIMEN_BASAL_BOLUS
-                                                ? 'bg-white text-blue-600 shadow-sm'
-                                                : 'text-slate-500 hover:text-slate-700'
-                                        }`}
-                                    >
-                                        Basal-Bolus
-                                        <span className="block text-[10px] opacity-70">แนะนำ (MDI)</span>
-                                    </button>
-                                    <button
-                                        onClick={() => setRegimen(REGIMEN_SPLIT_MIXED)}
-                                        className={`py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-                                            regimen === REGIMEN_SPLIT_MIXED
-                                                ? 'bg-white text-blue-600 shadow-sm'
-                                                : 'text-slate-500 hover:text-slate-700'
-                                        }`}
-                                    >
-                                        Split-Mixed
-                                        <span className="block text-[10px] opacity-70">ฉีด 2 ครั้ง/วัน</span>
-                                    </button>
-                                </div>
+                            <div className="relative"><input type="number" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="น้ำหนัก (kg)" className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none" /><div className="absolute left-3 top-3.5 font-bold text-xs text-slate-400">kg</div></div>
+                            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                                <button onClick={() => setRegimen(REGIMEN_BASAL_BOLUS)} className={`py-2 text-sm font-medium rounded-lg ${regimen === REGIMEN_BASAL_BOLUS ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Basal-Bolus</button>
+                                <button onClick={() => setRegimen(REGIMEN_SPLIT_MIXED)} className={`py-2 text-sm font-medium rounded-lg ${regimen === REGIMEN_SPLIT_MIXED ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Split-Mixed</button>
                             </div>
                         </div>
 
-                        {/* Results Section */}
+                        {/* Results & Buttons */}
                         {calculationResult && (
                             <div className="space-y-4">
                                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
                                     <div className="flex justify-between items-start mb-2">
                                         <div>
-                                            <h3 className="text-sm text-blue-800 font-semibold flex items-center gap-2">
-                                                <div className="w-4 h-4"><IconInfo /></div>
-                                                Total Daily Dose (TDD)
-                                            </h3>
-                                            <div className="text-xs text-blue-600 mt-1 space-y-0.5">
-                                                <p>GA: <strong>{gaDisplay}</strong> ({calculationResult.trimester})</p>
-                                                <p>Factor: <strong>{factor}</strong> u/kg</p>
-                                            </div>
+                                            <h3 className="text-sm text-blue-800 font-semibold">Total Daily Dose (TDD)</h3>
+                                            <p className="text-xs text-blue-600 mt-1">GA: {gaDisplay} | Factor: {factor}</p>
                                         </div>
-                                        <div className="text-3xl font-bold text-blue-700">
-                                            {tdd} <span className="text-base font-normal">units</span>
-                                        </div>
+                                        <div className="text-3xl font-bold text-blue-700">{tdd} <span className="text-base font-normal">units</span></div>
                                     </div>
                                 </div>
 
-                                <div className="space-y-3">
-                                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                        <div className="w-4 h-4 text-rose-500"><IconSyringe /></div>
-                                        คำแนะนำการบริหารยา
-                                    </h3>
-
-                                    {/* Formula Breakdown Section */}
-                                    <div className="bg-slate-100 p-3 rounded-lg border border-slate-200 text-xs text-slate-600 space-y-1.5">
-                                        <div className="flex items-center gap-1.5 font-bold text-slate-700 pb-1 border-b border-slate-200 mb-1">
-                                            <div className="w-3.5 h-3.5"><IconBookOpen /></div>
-                                            สูตรการคำนวณ (Formula Breakdown)
+                                {/* Regimen Details */}
+                                <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 shadow-sm">
+                                    {calculationResult.distribution.details.map((item, index) => (
+                                        <div key={index} className="p-3 flex justify-between items-center">
+                                            <span className="text-sm font-medium text-slate-600">{item.time}</span>
+                                            <div className="text-right font-bold text-slate-800">
+                                                {item.drug} <span className="text-blue-600 text-lg">{item.dose}</span> u
+                                                {item.secondaryDrug && <div className="mt-1">+ {item.secondaryDrug} <span className="text-blue-600 text-lg">{item.secondaryDose}</span> u</div>}
+                                            </div>
                                         </div>
-                                        <p>• <strong>TDD Calculation:</strong> {weight} kg × {factor} = <strong>{tdd}</strong> units</p>
-                                        
-                                        {regimen === REGIMEN_BASAL_BOLUS ? (
-                                            <div className="pl-2 border-l-2 border-blue-200 space-y-1">
-                                                <p>• <strong>Basal (50%):</strong> {tdd} × 0.5 = <strong>{Math.round(tdd * 0.5)}</strong> u</p>
-                                                <p>• <strong>Bolus (50%):</strong> {tdd} × 0.5 = <strong>{tdd - Math.round(tdd * 0.5)}</strong> u (หาร 3 มื้อ)</p>
-                                            </div>
-                                        ) : (
-                                            <div className="pl-2 border-l-2 border-blue-200 space-y-1">
-                                                <div className="mb-1">
-                                                    <p>• <strong>Morning (2/3):</strong> {tdd} × 0.66 ≈ <strong>{Math.round(tdd * (2/3))}</strong> u</p>
-                                                    <p className="text-[10px] text-slate-500 pl-2">→ (NPH 2ส่วน : Reg 1ส่วน)</p>
-                                                </div>
-                                                <div>
-                                                    <p>• <strong>Evening (1/3):</strong> {tdd} × 0.33 ≈ <strong>{tdd - Math.round(tdd * (2/3))}</strong> u</p>
-                                                    <p className="text-[10px] text-slate-500 pl-2">→ (NPH 1ส่วน : Reg 1ส่วน)</p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                    
-                                    <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 shadow-sm">
-                                        {calculationResult.distribution.details.map((item, index) => (
-                                            <div key={index} className="p-3 flex justify-between items-center hover:bg-slate-50 transition-colors">
-                                                <span className="text-sm font-medium text-slate-600">{item.time}</span>
-                                                <div className="text-right">
-                                                    <div className="font-bold text-slate-800">
-                                                        {item.drug} <span className="text-blue-600 text-lg">{item.dose}</span> u
-                                                    </div>
-                                                    {item.secondaryDrug && (
-                                                        <div className="font-bold text-slate-800 mt-1">
-                                                            + {item.secondaryDrug} <span className="text-blue-600 text-lg">{item.secondaryDose}</span> u
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
+                                    ))}
                                 </div>
 
-                                <button
-                                    onClick={copyToClipboard}
-                                    className="w-full py-3 px-4 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
-                                >
-                                    {showCopyFeedback ? (
-                                        <>
-                                            <div className="w-5 h-5 text-green-400"><IconCheck /></div>
-                                            คัดลอกเรียบร้อย
-                                        </>
-                                    ) : (
-                                        <>
-                                            <div className="w-5 h-5"><IconCopy /></div>
-                                            คัดลอกผลลัพธ์ (Copy Result)
-                                        </>
-                                    )}
+                                <button onClick={copyToClipboard} className="w-full py-3 px-4 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-medium flex items-center justify-center gap-2">
+                                    {showCopyFeedback ? <><IconCheck /><span className="text-green-400">คัดลอกแล้ว</span></> : <><IconCopy /><span>คัดลอกผลลัพธ์</span></>}
                                 </button>
+
+                                {/* SMBG Buttons */}
+                                <div className="flex gap-2">
+                                    <button onClick={() => setShowSmbg(!showSmbg)} className="flex-1 py-2 px-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs flex items-center justify-center gap-2">
+                                        <div className="w-4 h-4"><IconTable /></div>
+                                        {showSmbg ? 'ซ่อนตัวอย่าง' : 'ดูตัวอย่าง 1 วัน'}
+                                    </button>
+                                    <button onClick={() => setView('logbook')} className="flex-1 py-2 px-4 bg-green-50 border border-green-200 hover:bg-green-100 text-green-700 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
+                                        <div className="w-4 h-4"><IconPrinter /></div>
+                                        พิมพ์แบบฟอร์ม 30 วัน
+                                    </button>
+                                </div>
+                                
+                                {showSmbg && (
+                                    <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-sm text-xs">
+                                        <h4 className="font-bold text-slate-800">ตัวอย่างตาราง SMBG (1 วัน)</h4>
+                                        <div className="overflow-hidden rounded-lg border border-slate-200">
+                                            <table className="w-full text-left">
+                                                <thead className="bg-slate-50 text-slate-500 font-semibold uppercase"><tr><th className="px-3 py-2">มื้อ</th><th className="px-3 py-2 text-right">Target</th></tr></thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    <tr><td className="px-3 py-2">Fasting</td><td className="px-3 py-2 text-right text-green-700 font-bold">&lt; 95</td></tr>
+                                                    <tr><td className="px-3 py-2">Post-Meal 2hr</td><td className="px-3 py-2 text-right text-green-700 font-bold">&lt; 120</td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
-
-                        {!calculationResult && (
-                            <div className="text-center py-8 text-slate-400">
-                                <p>กรุณากรอกข้อมูลให้ครบถ้วนเพื่อเริ่มคำนวณ</p>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Disclaimer */}
-                    <div className="bg-slate-50 p-4 border-t border-slate-200">
-                        <div className="flex gap-2 text-xs text-slate-500 items-start">
-                            <div className="w-4 h-4 shrink-0 mt-0.5"><IconAlertCircle /></div>
-                            <p>
-                                <strong>Disclaimer:</strong> ผลลัพธ์เป็นเพียงการคำนวณเบื้องต้น (Initial Dose Calculation) แพทย์ควรปรับขนาดยา (Titrate) ตามระดับน้ำตาลของผู้ป่วย (SMBG) และดุลยพินิจทางการแพทย์
-                            </p>
-                        </div>
+                        
+                        {!calculationResult && <div className="text-center py-8 text-slate-400"><p>กรุณากรอกข้อมูลเพื่อคำนวณ</p></div>}
                     </div>
                 </div>
             );
