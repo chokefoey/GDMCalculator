@@ -1,433 +1,453 @@
-import React, { useState, useEffect } from 'react';
-import { Calculator, Syringe, Calendar, Info, AlertCircle, Copy, Check, ChevronDown, ChevronUp, Clock, BookOpen } from 'lucide-react';
-
-const InsulinCalculator = () => {
-  // Mode selection: 'manual' or 'edd'
-  const [calcMode, setCalcMode] = useState('edd'); // Default to EDD as requested
-
-  // State for inputs
-  const [weight, setWeight] = useState('');
-  const [manualGa, setManualGa] = useState('');
-  
-  // Date inputs
-  const [edd, setEdd] = useState('');
-  const [visitDate, setVisitDate] = useState(new Date().toISOString().split('T')[0]); // Default today
-
-  const [regimen, setRegimen] = useState('basal-bolus'); // 'basal-bolus' or 'split-mixed'
-  
-  // State for results
-  const [tdd, setTdd] = useState(0);
-  const [factor, setFactor] = useState(0.7);
-  const [calculationResult, setCalculationResult] = useState(null);
-  const [showCopyFeedback, setShowCopyFeedback] = useState(false);
-  
-  // Display string for GA (e.g., "28 wk 3 day")
-  const [gaDisplay, setGaDisplay] = useState('');
-
-  // Constants
-  const REGIMEN_BASAL_BOLUS = 'basal-bolus';
-  const REGIMEN_SPLIT_MIXED = 'split-mixed';
-
-  // Calculate logic
-  useEffect(() => {
-    let currentGaWeeks = 0;
-    let gaString = '';
-
-    // 1. Determine GA based on mode
-    if (calcMode === 'manual') {
-      if (!manualGa) {
-        setCalculationResult(null);
-        return;
-      }
-      currentGaWeeks = parseFloat(manualGa);
-      gaString = `${currentGaWeeks} wks`;
-    } else {
-      // Calculate from EDD
-      if (!edd || !visitDate) {
-        setCalculationResult(null);
-        return;
-      }
-      
-      const eddDate = new Date(edd);
-      const vDate = new Date(visitDate);
-      
-      // Difference in milliseconds
-      const diffTime = eddDate - vDate;
-      // Convert to days
-      const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      // Full term is 40 weeks = 280 days
-      const daysPregnant = 280 - daysRemaining;
-      
-      if (daysPregnant < 0) {
-         // Error or future date issue
-         setCalculationResult(null);
-         return;
-      }
-
-      currentGaWeeks = Math.floor(daysPregnant / 7);
-      const currentGaDays = daysPregnant % 7;
-      
-      gaString = `${currentGaWeeks} wks ${currentGaDays} days`;
-    }
-
-    setGaDisplay(gaString);
-
-    if (!weight) {
-      setCalculationResult(null);
-      return;
-    }
-
-    const w = parseFloat(weight);
-    if (isNaN(w) || isNaN(currentGaWeeks)) return;
-
-    // 2. Determine Factor based on GA (Trimester)
-    let currentFactor = 0.7;
-    let trimester = '1st Trimester';
-
-    if (currentGaWeeks < 14) {
-      currentFactor = 0.7;
-      trimester = '1st Trimester (Week 0-13)';
-    } else if (currentGaWeeks >= 14 && currentGaWeeks <= 27) {
-      currentFactor = 0.8;
-      trimester = '2nd Trimester (Week 14-27)';
-    } else {
-      currentFactor = 0.9;
-      trimester = '3rd Trimester (Week 28+)';
-    }
-
-    setFactor(currentFactor);
-
-    // 3. Calculate TDD
-    const calculatedTdd = Math.round(w * currentFactor);
-    setTdd(calculatedTdd);
-
-    // 4. Calculate Regimen Distribution
-    let distribution = {};
-
-    if (regimen === REGIMEN_BASAL_BOLUS) {
-      // 50% Basal, 50% Bolus
-      const totalBasal = Math.round(calculatedTdd * 0.5);
-      const totalBolus = calculatedTdd - totalBasal;
-      
-      // Divide Bolus by 3 meals
-      const bolusPerMeal = Math.round(totalBolus / 3);
-      // Adjust for rounding errors to match TDD exactly
-      const breakfast = bolusPerMeal;
-      const lunch = bolusPerMeal;
-      const dinner = totalBolus - (breakfast + lunch);
-
-      distribution = {
-        type: 'Basal-Bolus (MDI)',
-        details: [
-          { time: 'ก่อนอาหารเช้า', drug: 'Rapid/Regular', dose: breakfast },
-          { time: 'ก่อนอาหารเที่ยง', drug: 'Rapid/Regular', dose: lunch },
-          { time: 'ก่อนอาหารเย็น', drug: 'Rapid/Regular', dose: dinner },
-          { time: 'ก่อนนอน (Bedtime)', drug: 'NPH/Detemir', dose: totalBasal },
-        ]
-      };
-    } else {
-      // Split-Mixed: 2/3 Morning, 1/3 Evening
-      const morningTotal = Math.round(calculatedTdd * (2/3));
-      const eveningTotal = calculatedTdd - morningTotal;
-
-      // Morning: 2/3 NPH, 1/3 Regular
-      const morningNPH = Math.round(morningTotal * (2/3));
-      const morningReg = morningTotal - morningNPH;
-
-      // Evening: 1/2 NPH, 1/2 Regular
-      const eveningNPH = Math.round(eveningTotal * 0.5);
-      const eveningReg = eveningTotal - eveningNPH;
-
-      distribution = {
-        type: 'Split-Mixed (Twice Daily)',
-        details: [
-          { time: 'ก่อนอาหารเช้า', drug: 'NPH', dose: morningNPH, secondaryDrug: 'Regular', secondaryDose: morningReg },
-          { time: 'ก่อนอาหารเย็น', drug: 'NPH', dose: eveningNPH, secondaryDrug: 'Regular', secondaryDose: eveningReg },
-        ]
-      };
-    }
-
-    setCalculationResult({
-      trimester,
-      distribution
-    });
-
-  }, [weight, manualGa, edd, visitDate, calcMode, regimen]);
-
-  const copyToClipboard = () => {
-    if (!calculationResult) return;
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GDM Insulin Calculator</title>
     
-    let text = `Insulin Calculation for GDM\n`;
-    text += `GA: ${gaDisplay} | Wt: ${weight} kg | TDD: ${tdd} units (Factor ${factor})\n`;
-    text += `Regimen: ${calculationResult.distribution.type}\n`;
+    <!-- 1. Import React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     
-    // Add formula text for clipboard
-    if (regimen === REGIMEN_BASAL_BOLUS) {
-        text += `Formula: TDD x 0.5 Basal, TDD x 0.5 Bolus (/3 meals)\n`;
-    } else {
-        text += `Formula: Morning (2/3 TDD, NPH:Reg 2:1), Evening (1/3 TDD, NPH:Reg 1:1)\n`;
-    }
+    <!-- 2. Import Babel (เพื่อแปลง JSX ใน Browser) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- 3. Import Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- ปรับแต่ง Tailwind Font -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700&display=swap');
+        body { font-family: 'Sarabun', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-900">
 
-    calculationResult.distribution.details.forEach(item => {
-      text += `- ${item.time}: ${item.drug} ${item.dose} units`;
-      if (item.secondaryDrug) {
-        text += ` + ${item.secondaryDrug} ${item.secondaryDose} units`;
-      }
-      text += `\n`;
-    });
+    <div id="root"></div>
 
-    navigator.clipboard.writeText(text);
-    setShowCopyFeedback(true);
-    setTimeout(() => setShowCopyFeedback(false), 2000);
-  };
+    <script type="text/babel">
+        const { useState, useEffect } = React;
 
-  return (
-    <div className="min-h-screen bg-slate-50 p-4 font-sans text-slate-900">
-      <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
-        
-        {/* Header */}
-        <div className="bg-blue-600 p-6 text-white">
-          <div className="flex items-center gap-3 mb-2">
-            <Calculator className="w-8 h-8" />
-            <h1 className="text-2xl font-bold">GDM Insulin Calc</h1>
-          </div>
-          <p className="text-blue-100 text-sm">เครื่องมือคำนวณขนาดยาอินซูลินในหญิงตั้งครรภ์</p>
-        </div>
+        // --- Icon Components (สร้าง SVG เองเพื่อไม่ต้องลง Library) ---
+        const IconCalculator = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>;
+        const IconSyringe = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 2 4 4"/><path d="m17 7 3-3"/><path d="M19 9 8.7 19.3c-1 1-2.5 1-3.4 0l-.6-.6c-1-1-1-2.5 0-3.4L15 5"/><path d="m9 11 4 4"/><path d="m5 19-3 3"/><path d="m14 4 6 6"/></svg>;
+        const IconCalendar = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>;
+        const IconInfo = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>;
+        const IconAlertCircle = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>;
+        const IconCopy = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
+        const IconCheck = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>;
+        const IconClock = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+        const IconBookOpen = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>;
 
-        {/* Input Section */}
-        <div className="p-6 space-y-6">
-          <div className="space-y-4">
+        // --- Main Component ---
+        const InsulinCalculator = () => {
+            const [calcMode, setCalcMode] = useState('edd');
+            const [weight, setWeight] = useState('');
+            const [manualGa, setManualGa] = useState('');
+            const [edd, setEdd] = useState('');
+            const [visitDate, setVisitDate] = useState(new Date().toISOString().split('T')[0]);
+            const [regimen, setRegimen] = useState('basal-bolus');
             
-            {/* GA Selection Mode */}
-            <div>
-               <label className="block text-sm font-medium text-slate-700 mb-2">
-                วิธีระบุอายุครรภ์ (Gestational Age Input)
-              </label>
-              <div className="flex bg-slate-100 p-1 rounded-xl mb-4">
-                <button
-                  onClick={() => setCalcMode('edd')}
-                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
-                    calcMode === 'edd' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'
-                  }`}
-                >
-                  คำนวณจาก EDD
-                </button>
-                <button
-                  onClick={() => setCalcMode('manual')}
-                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
-                    calcMode === 'manual' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'
-                  }`}
-                >
-                  ระบุเอง (Manual)
-                </button>
-              </div>
+            const [tdd, setTdd] = useState(0);
+            const [factor, setFactor] = useState(0.7);
+            const [calculationResult, setCalculationResult] = useState(null);
+            const [showCopyFeedback, setShowCopyFeedback] = useState(false);
+            const [gaDisplay, setGaDisplay] = useState('');
 
-              {calcMode === 'manual' ? (
-                <div className="relative animate-fade-in">
-                   <label className="block text-xs text-slate-500 mb-1">อายุครรภ์ (สัปดาห์)</label>
-                   <input
-                    type="number"
-                    value={manualGa}
-                    onChange={(e) => setManualGa(e.target.value)}
-                    placeholder="เช่น 28"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                  <Clock className="absolute left-3 top-8 w-5 h-5 text-slate-400" />
-                </div>
-              ) : (
-                <div className="space-y-3 animate-fade-in">
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">วันกำหนดคลอด (EDD)</label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        value={edd}
-                        onChange={(e) => setEdd(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                      />
-                      <Calendar className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">วันที่ตรวจ (Visit Date)</label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        value={visitDate}
-                        onChange={(e) => setVisitDate(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                      />
-                      <Calendar className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-                    </div>
-                  </div>
-                  {gaDisplay && !calculationResult && (
-                     <p className="text-sm text-green-600 font-medium bg-green-50 p-2 rounded-lg border border-green-100 text-center">
-                        อายุครรภ์ที่คำนวณได้: {gaDisplay}
-                     </p>
-                  )}
-                </div>
-              )}
-            </div>
+            const REGIMEN_BASAL_BOLUS = 'basal-bolus';
+            const REGIMEN_SPLIT_MIXED = 'split-mixed';
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                น้ำหนักมารดาปัจจุบัน (Current Weight - kg)
-              </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  value={weight}
-                  onChange={(e) => setWeight(e.target.value)}
-                  placeholder="เช่น 70"
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                />
-                <div className="absolute left-3 top-3.5 w-5 h-5 flex items-center justify-center text-slate-400 font-bold text-xs">kg</div>
-              </div>
-            </div>
+            useEffect(() => {
+                let currentGaWeeks = 0;
+                let gaString = '';
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                รูปแบบการรักษา (Regimen Protocol)
-              </label>
-              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
-                <button
-                  onClick={() => setRegimen(REGIMEN_BASAL_BOLUS)}
-                  className={`py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-                    regimen === REGIMEN_BASAL_BOLUS
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  Basal-Bolus
-                  <span className="block text-[10px] opacity-70">แนะนำ (MDI)</span>
-                </button>
-                <button
-                  onClick={() => setRegimen(REGIMEN_SPLIT_MIXED)}
-                  className={`py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-                    regimen === REGIMEN_SPLIT_MIXED
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  Split-Mixed
-                  <span className="block text-[10px] opacity-70">ฉีด 2 ครั้ง/วัน</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Results Section */}
-          {calculationResult && (
-            <div className="animate-fade-in space-y-4">
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h3 className="text-sm text-blue-800 font-semibold flex items-center gap-2">
-                      <Info className="w-4 h-4" />
-                      Total Daily Dose (TDD)
-                    </h3>
-                    <div className="text-xs text-blue-600 mt-1 space-y-0.5">
-                       <p>GA: <strong>{gaDisplay}</strong> ({calculationResult.trimester})</p>
-                       <p>Factor: <strong>{factor}</strong> u/kg</p>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-blue-700">
-                    {tdd} <span className="text-base font-normal">units</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                  <Syringe className="w-4 h-4 text-rose-500" />
-                  คำแนะนำการบริหารยา
-                </h3>
-
-                {/* Formula Breakdown Section */}
-                <div className="bg-slate-100 p-3 rounded-lg border border-slate-200 text-xs text-slate-600 space-y-1.5">
-                    <div className="flex items-center gap-1.5 font-bold text-slate-700 pb-1 border-b border-slate-200 mb-1">
-                        <BookOpen className="w-3.5 h-3.5" />
-                        สูตรการคำนวณ (Formula Breakdown)
-                    </div>
-                    <p>• <strong>TDD Calculation:</strong> {weight} kg × {factor} = <strong>{tdd}</strong> units</p>
+                if (calcMode === 'manual') {
+                    if (!manualGa) {
+                        setCalculationResult(null);
+                        setGaDisplay('');
+                        return;
+                    }
+                    currentGaWeeks = parseFloat(manualGa);
+                    gaString = `${currentGaWeeks} wks`;
+                } else {
+                    if (!edd || !visitDate) {
+                        setCalculationResult(null);
+                        setGaDisplay('');
+                        return;
+                    }
                     
-                    {regimen === REGIMEN_BASAL_BOLUS ? (
-                        <div className="pl-2 border-l-2 border-blue-200 space-y-1">
-                            <p>• <strong>Basal (50%):</strong> {tdd} × 0.5 = <strong>{Math.round(tdd * 0.5)}</strong> u</p>
-                            <p>• <strong>Bolus (50%):</strong> {tdd} × 0.5 = <strong>{tdd - Math.round(tdd * 0.5)}</strong> u (หาร 3 มื้อ)</p>
-                        </div>
-                    ) : (
-                        <div className="pl-2 border-l-2 border-blue-200 space-y-1">
-                            <div className="mb-1">
-                                <p>• <strong>Morning (2/3):</strong> {tdd} × 0.66 ≈ <strong>{Math.round(tdd * (2/3))}</strong> u</p>
-                                <p className="text-[10px] text-slate-500 pl-2">→ (NPH 2ส่วน : Reg 1ส่วน)</p>
-                            </div>
-                            <div>
-                                <p>• <strong>Evening (1/3):</strong> {tdd} × 0.33 ≈ <strong>{tdd - Math.round(tdd * (2/3))}</strong> u</p>
-                                <p className="text-[10px] text-slate-500 pl-2">→ (NPH 1ส่วน : Reg 1ส่วน)</p>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                    const eddDate = new Date(edd);
+                    const vDate = new Date(visitDate);
+                    const diffTime = eddDate - vDate;
+                    const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    const daysPregnant = 280 - daysRemaining;
+                    
+                    if (daysPregnant < 0) {
+                        setCalculationResult(null);
+                        setGaDisplay('');
+                        return;
+                    }
+
+                    currentGaWeeks = Math.floor(daysPregnant / 7);
+                    const currentGaDays = daysPregnant % 7;
+                    gaString = `${currentGaWeeks} wks ${currentGaDays} days`;
+                }
+
+                setGaDisplay(gaString);
+
+                if (!weight) {
+                    setCalculationResult(null);
+                    return;
+                }
+
+                const w = parseFloat(weight);
+                if (isNaN(w) || isNaN(currentGaWeeks)) return;
+
+                let currentFactor = 0.7;
+                let trimester = '1st Trimester';
+
+                if (currentGaWeeks < 14) {
+                    currentFactor = 0.7;
+                    trimester = '1st Trimester (Week 0-13)';
+                } else if (currentGaWeeks >= 14 && currentGaWeeks <= 27) {
+                    currentFactor = 0.8;
+                    trimester = '2nd Trimester (Week 14-27)';
+                } else {
+                    currentFactor = 0.9;
+                    trimester = '3rd Trimester (Week 28+)';
+                }
+
+                setFactor(currentFactor);
+
+                const calculatedTdd = Math.round(w * currentFactor);
+                setTdd(calculatedTdd);
+
+                let distribution = {};
+
+                if (regimen === REGIMEN_BASAL_BOLUS) {
+                    const totalBasal = Math.round(calculatedTdd * 0.5);
+                    const totalBolus = calculatedTdd - totalBasal;
+                    const bolusPerMeal = Math.round(totalBolus / 3);
+                    const breakfast = bolusPerMeal;
+                    const lunch = bolusPerMeal;
+                    const dinner = totalBolus - (breakfast + lunch);
+
+                    distribution = {
+                        type: 'Basal-Bolus (MDI)',
+                        details: [
+                            { time: 'ก่อนอาหารเช้า', drug: 'Rapid/Regular', dose: breakfast },
+                            { time: 'ก่อนอาหารเที่ยง', drug: 'Rapid/Regular', dose: lunch },
+                            { time: 'ก่อนอาหารเย็น', drug: 'Rapid/Regular', dose: dinner },
+                            { time: 'ก่อนนอน (Bedtime)', drug: 'NPH/Detemir', dose: totalBasal },
+                        ]
+                    };
+                } else {
+                    const morningTotal = Math.round(calculatedTdd * (2/3));
+                    const eveningTotal = calculatedTdd - morningTotal;
+                    const morningNPH = Math.round(morningTotal * (2/3));
+                    const morningReg = morningTotal - morningNPH;
+                    const eveningNPH = Math.round(eveningTotal * 0.5);
+                    const eveningReg = eveningTotal - eveningNPH;
+
+                    distribution = {
+                        type: 'Split-Mixed (Twice Daily)',
+                        details: [
+                            { time: 'ก่อนอาหารเช้า', drug: 'NPH', dose: morningNPH, secondaryDrug: 'Regular', secondaryDose: morningReg },
+                            { time: 'ก่อนอาหารเย็น', drug: 'NPH', dose: eveningNPH, secondaryDrug: 'Regular', secondaryDose: eveningReg },
+                        ]
+                    };
+                }
+
+                setCalculationResult({
+                    trimester,
+                    distribution
+                });
+
+            }, [weight, manualGa, edd, visitDate, calcMode, regimen]);
+
+            const copyToClipboard = () => {
+                if (!calculationResult) return;
                 
-                <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 shadow-sm">
-                  {calculationResult.distribution.details.map((item, index) => (
-                    <div key={index} className="p-3 flex justify-between items-center hover:bg-slate-50 transition-colors">
-                      <span className="text-sm font-medium text-slate-600">{item.time}</span>
-                      <div className="text-right">
-                        <div className="font-bold text-slate-800">
-                          {item.drug} <span className="text-blue-600 text-lg">{item.dose}</span> u
+                let text = `Insulin Calculation for GDM\n`;
+                text += `GA: ${gaDisplay} | Wt: ${weight} kg | TDD: ${tdd} units (Factor ${factor})\n`;
+                text += `Regimen: ${calculationResult.distribution.type}\n`;
+                
+                if (regimen === REGIMEN_BASAL_BOLUS) {
+                    text += `Formula: TDD x 0.5 Basal, TDD x 0.5 Bolus (/3 meals)\n`;
+                } else {
+                    text += `Formula: Morning (2/3 TDD, NPH:Reg 2:1), Evening (1/3 TDD, NPH:Reg 1:1)\n`;
+                }
+
+                calculationResult.distribution.details.forEach(item => {
+                    text += `- ${item.time}: ${item.drug} ${item.dose} units`;
+                    if (item.secondaryDrug) {
+                        text += ` + ${item.secondaryDrug} ${item.secondaryDose} units`;
+                    }
+                    text += `\n`;
+                });
+
+                // Hack for copy in some browsers without HTTPS
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    setShowCopyFeedback(true);
+                    setTimeout(() => setShowCopyFeedback(false), 2000);
+                } catch (err) {
+                    console.error('Fallback copy failed', err);
+                }
+                document.body.removeChild(textArea);
+            };
+
+            return (
+                <div className="max-w-md mx-auto my-8 bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
+                    {/* Header */}
+                    <div className="bg-blue-600 p-6 text-white">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="w-8 h-8"><IconCalculator /></div>
+                            <h1 className="text-2xl font-bold">GDM Insulin Calc</h1>
                         </div>
-                        {item.secondaryDrug && (
-                          <div className="font-bold text-slate-800 mt-1">
-                            + {item.secondaryDrug} <span className="text-blue-600 text-lg">{item.secondaryDose}</span> u
-                          </div>
-                        )}
-                      </div>
+                        <p className="text-blue-100 text-sm">เครื่องมือคำนวณขนาดยาอินซูลินในหญิงตั้งครรภ์</p>
                     </div>
-                  ))}
+
+                    {/* Input Section */}
+                    <div className="p-6 space-y-6">
+                        <div className="space-y-4">
+                            
+                            {/* GA Selection Mode */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    วิธีระบุอายุครรภ์ (Gestational Age Input)
+                                </label>
+                                <div className="flex bg-slate-100 p-1 rounded-xl mb-4">
+                                    <button
+                                        onClick={() => setCalcMode('edd')}
+                                        className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+                                            calcMode === 'edd' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'
+                                        }`}
+                                    >
+                                        คำนวณจาก EDD
+                                    </button>
+                                    <button
+                                        onClick={() => setCalcMode('manual')}
+                                        className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+                                            calcMode === 'manual' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'
+                                        }`}
+                                    >
+                                        ระบุเอง (Manual)
+                                    </button>
+                                </div>
+
+                                {calcMode === 'manual' ? (
+                                    <div className="relative">
+                                        <label className="block text-xs text-slate-500 mb-1">อายุครรภ์ (สัปดาห์)</label>
+                                        <input
+                                            type="number"
+                                            value={manualGa}
+                                            onChange={(e) => setManualGa(e.target.value)}
+                                            placeholder="เช่น 28"
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                                        />
+                                        <div className="absolute left-3 top-8 text-slate-400 w-5 h-5"><IconClock /></div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="block text-xs text-slate-500 mb-1">วันกำหนดคลอด (EDD)</label>
+                                            <div className="relative">
+                                                <input
+                                                    type="date"
+                                                    value={edd}
+                                                    onChange={(e) => setEdd(e.target.value)}
+                                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                                                />
+                                                <div className="absolute left-3 top-3 text-slate-400 w-5 h-5"><IconCalendar /></div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-slate-500 mb-1">วันที่ตรวจ (Visit Date)</label>
+                                            <div className="relative">
+                                                <input
+                                                    type="date"
+                                                    value={visitDate}
+                                                    onChange={(e) => setVisitDate(e.target.value)}
+                                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                                                />
+                                                <div className="absolute left-3 top-3 text-slate-400 w-5 h-5"><IconCalendar /></div>
+                                            </div>
+                                        </div>
+                                        {gaDisplay && !calculationResult && (
+                                            <p className="text-sm text-green-600 font-medium bg-green-50 p-2 rounded-lg border border-green-100 text-center">
+                                                อายุครรภ์ที่คำนวณได้: {gaDisplay}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
+                                    น้ำหนักมารดาปัจจุบัน (Current Weight - kg)
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        value={weight}
+                                        onChange={(e) => setWeight(e.target.value)}
+                                        placeholder="เช่น 70"
+                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                                    />
+                                    <div className="absolute left-3 top-3.5 w-5 h-5 flex items-center justify-center text-slate-400 font-bold text-xs">kg</div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    รูปแบบการรักษา (Regimen Protocol)
+                                </label>
+                                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                                    <button
+                                        onClick={() => setRegimen(REGIMEN_BASAL_BOLUS)}
+                                        className={`py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                                            regimen === REGIMEN_BASAL_BOLUS
+                                                ? 'bg-white text-blue-600 shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                    >
+                                        Basal-Bolus
+                                        <span className="block text-[10px] opacity-70">แนะนำ (MDI)</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setRegimen(REGIMEN_SPLIT_MIXED)}
+                                        className={`py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                                            regimen === REGIMEN_SPLIT_MIXED
+                                                ? 'bg-white text-blue-600 shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                    >
+                                        Split-Mixed
+                                        <span className="block text-[10px] opacity-70">ฉีด 2 ครั้ง/วัน</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Results Section */}
+                        {calculationResult && (
+                            <div className="space-y-4">
+                                <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div>
+                                            <h3 className="text-sm text-blue-800 font-semibold flex items-center gap-2">
+                                                <div className="w-4 h-4"><IconInfo /></div>
+                                                Total Daily Dose (TDD)
+                                            </h3>
+                                            <div className="text-xs text-blue-600 mt-1 space-y-0.5">
+                                                <p>GA: <strong>{gaDisplay}</strong> ({calculationResult.trimester})</p>
+                                                <p>Factor: <strong>{factor}</strong> u/kg</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-3xl font-bold text-blue-700">
+                                            {tdd} <span className="text-base font-normal">units</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                        <div className="w-4 h-4 text-rose-500"><IconSyringe /></div>
+                                        คำแนะนำการบริหารยา
+                                    </h3>
+
+                                    {/* Formula Breakdown Section */}
+                                    <div className="bg-slate-100 p-3 rounded-lg border border-slate-200 text-xs text-slate-600 space-y-1.5">
+                                        <div className="flex items-center gap-1.5 font-bold text-slate-700 pb-1 border-b border-slate-200 mb-1">
+                                            <div className="w-3.5 h-3.5"><IconBookOpen /></div>
+                                            สูตรการคำนวณ (Formula Breakdown)
+                                        </div>
+                                        <p>• <strong>TDD Calculation:</strong> {weight} kg × {factor} = <strong>{tdd}</strong> units</p>
+                                        
+                                        {regimen === REGIMEN_BASAL_BOLUS ? (
+                                            <div className="pl-2 border-l-2 border-blue-200 space-y-1">
+                                                <p>• <strong>Basal (50%):</strong> {tdd} × 0.5 = <strong>{Math.round(tdd * 0.5)}</strong> u</p>
+                                                <p>• <strong>Bolus (50%):</strong> {tdd} × 0.5 = <strong>{tdd - Math.round(tdd * 0.5)}</strong> u (หาร 3 มื้อ)</p>
+                                            </div>
+                                        ) : (
+                                            <div className="pl-2 border-l-2 border-blue-200 space-y-1">
+                                                <div className="mb-1">
+                                                    <p>• <strong>Morning (2/3):</strong> {tdd} × 0.66 ≈ <strong>{Math.round(tdd * (2/3))}</strong> u</p>
+                                                    <p className="text-[10px] text-slate-500 pl-2">→ (NPH 2ส่วน : Reg 1ส่วน)</p>
+                                                </div>
+                                                <div>
+                                                    <p>• <strong>Evening (1/3):</strong> {tdd} × 0.33 ≈ <strong>{tdd - Math.round(tdd * (2/3))}</strong> u</p>
+                                                    <p className="text-[10px] text-slate-500 pl-2">→ (NPH 1ส่วน : Reg 1ส่วน)</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 shadow-sm">
+                                        {calculationResult.distribution.details.map((item, index) => (
+                                            <div key={index} className="p-3 flex justify-between items-center hover:bg-slate-50 transition-colors">
+                                                <span className="text-sm font-medium text-slate-600">{item.time}</span>
+                                                <div className="text-right">
+                                                    <div className="font-bold text-slate-800">
+                                                        {item.drug} <span className="text-blue-600 text-lg">{item.dose}</span> u
+                                                    </div>
+                                                    {item.secondaryDrug && (
+                                                        <div className="font-bold text-slate-800 mt-1">
+                                                            + {item.secondaryDrug} <span className="text-blue-600 text-lg">{item.secondaryDose}</span> u
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={copyToClipboard}
+                                    className="w-full py-3 px-4 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                                >
+                                    {showCopyFeedback ? (
+                                        <>
+                                            <div className="w-5 h-5 text-green-400"><IconCheck /></div>
+                                            คัดลอกเรียบร้อย
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="w-5 h-5"><IconCopy /></div>
+                                            คัดลอกผลลัพธ์ (Copy Result)
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        )}
+
+                        {!calculationResult && (
+                            <div className="text-center py-8 text-slate-400">
+                                <p>กรุณากรอกข้อมูลให้ครบถ้วนเพื่อเริ่มคำนวณ</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Disclaimer */}
+                    <div className="bg-slate-50 p-4 border-t border-slate-200">
+                        <div className="flex gap-2 text-xs text-slate-500 items-start">
+                            <div className="w-4 h-4 shrink-0 mt-0.5"><IconAlertCircle /></div>
+                            <p>
+                                <strong>Disclaimer:</strong> ผลลัพธ์เป็นเพียงการคำนวณเบื้องต้น (Initial Dose Calculation) แพทย์ควรปรับขนาดยา (Titrate) ตามระดับน้ำตาลของผู้ป่วย (SMBG) และดุลยพินิจทางการแพทย์
+                            </p>
+                        </div>
+                    </div>
                 </div>
-              </div>
+            );
+        };
 
-              <button
-                onClick={copyToClipboard}
-                className="w-full py-3 px-4 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-all active:scale-95"
-              >
-                {showCopyFeedback ? (
-                  <>
-                    <Check className="w-5 h-5 text-green-400" />
-                    คัดลอกเรียบร้อย
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-5 h-5" />
-                    คัดลอกผลลัพธ์ (Copy Result)
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-
-          {!calculationResult && (
-            <div className="text-center py-8 text-slate-400">
-              <p>กรุณากรอกข้อมูลให้ครบถ้วนเพื่อเริ่มคำนวณ</p>
-            </div>
-          )}
-        </div>
-
-        {/* Disclaimer */}
-        <div className="bg-slate-50 p-4 border-t border-slate-200">
-          <div className="flex gap-2 text-xs text-slate-500 items-start">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <p>
-              <strong>Disclaimer:</strong> ผลลัพธ์เป็นเพียงการคำนวณเบื้องต้น (Initial Dose Calculation) แพทย์ควรปรับขนาดยา (Titrate) ตามระดับน้ำตาลของผู้ป่วย (SMBG) และดุลยพินิจทางการแพทย์
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default InsulinCalculator;
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<InsulinCalculator />);
+    </script>
+</body>
+</html>
